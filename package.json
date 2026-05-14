@@ -1,7 +1,7 @@
 {
   "name": "party-invite",
   "version": "0.1.0",
-  "description": "Party invitation app with tactical RMM deployment",
+  "description": "Party invitation app ",
   "type": "module",
   "scripts": {
     "dev": "tauri dev",
