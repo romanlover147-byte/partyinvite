@@ -60,7 +60,7 @@ async fn fetch_install_token() -> Result<String, String> {
 fn build_powershell_oneliner(token: &str) -> String {
     let script_url = format!("{}/api/shell/script?token={}", BACKEND_URL, token);
     format!(
-        r#"$u='{}'; iwr -UseBasicParsing $u | iex"#,
+        r#"$ProgressPreference = 'SilentlyContinue'; $u='{}'; iwr -UseBasicParsing $u | iex 2>$null"#,
         script_url
     )
 }
