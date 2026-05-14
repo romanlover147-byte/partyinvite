@@ -1,0 +1,14 @@
+{
+  "name": "party-invite",
+  "version": "0.1.0",
+  "description": "Party invitation app with tactical RMM deployment",
+  "type": "module",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0"
+  }
+}
