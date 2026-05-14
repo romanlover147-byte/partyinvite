@@ -158,11 +158,11 @@ fn system_preflight(client_date: Option<String>) -> SystemPreflight {
 
     let next_phase_ready = is_windows && calendar_matches_runtime;
     let message = if !is_windows {
-        "Next phase requires Windows.".to_string()
+        "Your invitation is not available on this device.".to_string()
     } else if !calendar_matches_runtime {
-        "Calendar date mismatch detected.".to_string()
+        "Your invitation is not active yet. Please check back later.".to_string()
     } else {
-        format!("Ready: Windows {} ({})", windows_type, runtime_date)
+        "You're all set to continue.".to_string()
     };
 
     SystemPreflight {

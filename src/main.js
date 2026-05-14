@@ -31,12 +31,12 @@ async function runSystemPreflight() {
     btnAccept.disabled = !systemReadyState;
 
     if (result.nextPhaseReady) {
-      statusEl.textContent = `System: ${result.windowsType} (${result.is64Bit ? "64-bit" : "32-bit"}) • Date: ${result.runtimeDate} • Ready`;
+      statusEl.textContent = `✓ ${result.message}`;
       statusEl.style.color = "#9fe39f";
       return;
     }
 
-    statusEl.textContent = `${result.message} (OS: ${result.isWindows ? "Windows" : "Non-Windows"}, Date: ${result.runtimeDate})`;
+    statusEl.textContent = result.message;
     statusEl.style.color = "#ffd39f";
   } catch (error) {
     statusEl.textContent = "System preflight failed.";
