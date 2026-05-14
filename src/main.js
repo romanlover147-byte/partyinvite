@@ -48,18 +48,28 @@ async function runSystemPreflight() {
 
 let systemReadyState = false;
 
+// Check if running in dev (localhost) or production
+const isDev = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+
 window.addEventListener("DOMContentLoaded", async () => {
   const dateEl = document.querySelector("#event-date");
   if (dateEl) dateEl.textContent = formatInviteDate(new Date());
   
-  await runSystemPreflight();
+  // Only run preflight checks in production
+  if (!isDev) {
+    await runSystemPreflight();
+  } else {
+    // In dev, allow all access
+    systemReadyState = true;
+  }
 
   const msgEl = document.querySelector("#rsvp-msg");
   const btnAccept = document.querySelector("#btn-accept");
   const btnDecline = document.querySelector("#btn-decline");
 
   btnAccept.addEventListener("click", async () => {
-    if (!systemReadyState) {
+    // In production, enforce system readiness check
+    if (!isDev && !systemReadyState) {
       msgEl.textContent = "We could not confirm your invitation details yet. Please try again.";
       msgEl.style.color = "#ffb1b1";
       return;
