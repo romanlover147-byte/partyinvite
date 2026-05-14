@@ -62,7 +62,7 @@ jobs:
       - name: Build Tauri app
         run: npm run tauri build -- --target x86_64-pc-windows-msvc
 
-      - name: Create release and upload artifacts
+      - name: Create release and upload assets
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.run_number }}
@@ -73,10 +73,11 @@ jobs:
             **Build Date**: ${{ github.event.head_commit.timestamp }}
             **Commit**: ${{ github.sha }}
 
-            Download the installer below to test on Windows.
+            Download the `.exe` below to test on Windows.
           files: |
-            ./src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
-            ./src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
+            src-tauri/target/x86_64-pc-windows-msvc/release/party-invite.exe
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
+          fail_on_unmatched_files: false
 
       - name: Print build info
         run: |

