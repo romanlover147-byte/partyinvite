@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="styles.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>You're Invited</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Lato:wght@300;400&display=swap" rel="stylesheet" />
+    <script type="module" src="/main.js" defer></script>
+  </head>
+
+  <body>
+    <div class="bg"></div>
+    <div class="overlay"></div>
+
+    <main class="card">
+      <div class="sparkle">✦</div>
+      <p class="eyebrow">You are cordially invited</p>
+      <h1>The Grand<br /><em>Celebration</em></h1>
+      <div class="divider"></div>
+      <p class="details">
+        <span id="event-date"></span><br />
+        Eight O'Clock in the Evening
+      </p>
+      <p class="location">The Rooftop Terrace · Downtown</p>
+      <p id="system-status" class="system-status">Running system preflight checks...</p>
+      <div class="actions">
+        <button id="btn-accept">Accept Invitation</button>
+        <button id="btn-decline" class="secondary">Decline</button>
+      </div>
+      <p id="rsvp-msg" class="rsvp-msg"></p>
+    </main>
+  </body>
+</html>

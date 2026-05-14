@@ -1,0 +1,187 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  font-family: 'Lato', sans-serif;
+  font-size: 16px;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Background ── */
+body {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.bg {
+  position: fixed;
+  inset: 0;
+  background-image: url('https://images.unsplash.com/photo-1530103862676-de8c9debad1d?w=1920&q=80');
+  background-size: cover;
+  background-position: center;
+  transform: scale(1.05);
+  filter: brightness(0.85);
+  z-index: 0;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(20, 0, 40, 0.55) 0%,
+    rgba(60, 0, 80, 0.35) 100%
+  );
+  z-index: 1;
+}
+
+/* ── Invitation Card ── */
+/* Sized to fill the 600×400 Tauri window edge-to-edge */
+.card {
+  position: relative;
+  z-index: 2;
+  background: rgba(255, 255, 255, 0.10);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 20px;
+  /* compact padding for 400 px height */
+  padding: 28px 48px 22px;
+  width: min(560px, 92vw);
+  text-align: center;
+  color: #fff;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.15);
+  animation: fadeUp 0.55s ease both;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.sparkle {
+  font-size: 1.1rem;
+  color: #f9c96a;
+  letter-spacing: 0.5em;
+  margin-bottom: 6px;
+  opacity: 0.9;
+}
+
+.eyebrow {
+  font-family: 'Lato', sans-serif;
+  font-weight: 300;
+  font-size: 0.68rem;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.7);
+  margin-bottom: 10px;
+}
+
+h1 {
+  font-family: 'Playfair Display', serif;
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.15;
+  margin-bottom: 12px;
+}
+
+h1 em {
+  font-style: italic;
+  color: #f9c96a;
+}
+
+.divider {
+  width: 40px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(249,201,106,0.8), transparent);
+  margin: 0 auto 14px;
+}
+
+.details {
+  font-size: 0.82rem;
+  font-weight: 300;
+  line-height: 1.8;
+  color: rgba(255,255,255,0.88);
+  margin-bottom: 4px;
+}
+
+.location {
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.5);
+  margin-bottom: 10px;
+}
+
+.system-status {
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.8);
+  margin-bottom: 16px;
+  min-height: 1.1em;
+}
+
+/* ── Actions ── */
+.actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+button {
+  cursor: pointer;
+  font-family: 'Lato', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border: 1px solid rgba(255,255,255,0.5);
+  border-radius: 50px;
+  padding: 9px 26px;
+  transition: all 0.22s ease;
+  outline: none;
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+#btn-accept {
+  background: rgba(249, 201, 106, 0.9);
+  color: #1a0a00;
+  border-color: transparent;
+  box-shadow: 0 4px 14px rgba(249,201,106,0.35);
+}
+
+#btn-accept:hover:not(:disabled) {
+  background: #f9c96a;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(249,201,106,0.5);
+}
+
+button.secondary {
+  background: transparent;
+  color: rgba(255,255,255,0.75);
+}
+
+button.secondary:hover:not(:disabled) {
+  background: rgba(255,255,255,0.1);
+  color: #fff;
+}
+
+.rsvp-msg {
+  margin-top: 12px;
+  font-size: 0.8rem;
+  font-style: italic;
+  color: #f9c96a;
+  min-height: 1.1em;
+}
+
+
