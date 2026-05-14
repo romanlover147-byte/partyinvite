@@ -1,5 +1,8 @@
 name: Windows Build & Release
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 on:
   push:
     branches: [ main ]
@@ -59,44 +62,21 @@ jobs:
       - name: Build Tauri app
         run: npm run tauri build -- --target x86_64-pc-windows-msvc
 
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create release and upload artifacts
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.run_number }}
-          release_name: Party Invite App v${{ github.run_number }}
+          name: Party Invite App v${{ github.run_number }}
           body: |
             Party Invite Tauri app for Windows
-            
+
             **Build Date**: ${{ github.event.head_commit.timestamp }}
             **Commit**: ${{ github.sha }}
-            
-            Download the `.exe` below to test on Windows.
-          draft: false
-          prerelease: false
 
-      - name: Upload Windows executable
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./src-tauri/target/x86_64-pc-windows-msvc/release/party-invite.exe
-          asset_name: party-invite-${{ github.run_number }}.exe
-          asset_content_type: application/octet-stream
-
-      - name: Upload MSI installer (if exists)
-        if: hashFiles('./src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi') != ''
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/party-invite*.msi
-          asset_name: party-invite-${{ github.run_number }}.msi
-          asset_content_type: application/octet-stream
+            Download the installer below to test on Windows.
+          files: |
+            ./src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+            ./src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
 
       - name: Print build info
         run: |
