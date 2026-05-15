@@ -1,17 +1,23 @@
 const { invoke } = window.__TAURI__.core;
 
-function initLucideIcons() {
-  if (window.lucide?.createIcons) {
-    window.lucide.createIcons();
-  }
+function applyTone(element, tone) {
+  if (!element) return;
+  element.dataset.tone = tone;
 }
 
-function setInviteState(stageEl, state) {
-  if (!stageEl) return;
-  stageEl.classList.remove("is-opening", "is-accepted", "is-declined");
-  if (state) {
-    stageEl.classList.add(state);
-  }
+function setMessage(text, tone = "idle", weight = "500") {
+  const msgEl = document.querySelector("#rsvp-msg");
+  if (!msgEl) return;
+  msgEl.textContent = text;
+  msgEl.style.fontWeight = weight;
+  applyTone(msgEl, tone);
+}
+
+function setStatus(text, tone = "pending") {
+  const statusEl = document.querySelector("#system-status");
+  if (!statusEl) return;
+  statusEl.textContent = text;
+  applyTone(statusEl, tone);
 }
 
 function formatInviteDate(date) {
@@ -33,9 +39,8 @@ function formatIsoDateLocal(date) {
 }
 
 async function runSystemPreflight() {
-  const statusEl = document.querySelector("#system-status");
   const btnAccept = document.querySelector("#btn-accept");
-  if (!statusEl || !btnAccept) return;
+  if (!btnAccept) return;
 
   try {
     const clientDate = formatIsoDateLocal(new Date());
@@ -45,16 +50,13 @@ async function runSystemPreflight() {
     btnAccept.disabled = !systemReadyState;
 
     if (result.nextPhaseReady) {
-      statusEl.textContent = `✓ ${result.message}`;
-      statusEl.style.color = "#9fe39f";
+      setStatus(result.message, "success");
       return;
     }
 
-    statusEl.textContent = result.message;
-    statusEl.style.color = "#ffd39f";
+    setStatus(result.message, "warning");
   } catch (error) {
-    statusEl.textContent = "System preflight failed.";
-    statusEl.style.color = "#ffb1b1";
+    setStatus("We could not prepare the invitation details.", "danger");
     btnAccept.disabled = true;
     console.error(error);
   }
@@ -66,7 +68,7 @@ let systemReadyState = false;
 const isDev = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
 
 window.addEventListener("DOMContentLoaded", async () => {
-  initLucideIcons();
+  window.lucide?.createIcons();
 
   const dateEl = document.querySelector("#event-date");
   if (dateEl) dateEl.textContent = formatInviteDate(new Date());
@@ -77,45 +79,32 @@ window.addEventListener("DOMContentLoaded", async () => {
   } else {
     // In dev, allow all access
     systemReadyState = true;
+    setStatus("Your invitation is ready for a live RSVP test.", "success");
   }
 
-  const msgEl = document.querySelector("#rsvp-msg");
   const btnAccept = document.querySelector("#btn-accept");
   const btnDecline = document.querySelector("#btn-decline");
-  const stageEl = document.querySelector("#invite-stage");
 
   btnAccept.addEventListener("click", async () => {
     // In production, enforce system readiness check
     if (!isDev && !systemReadyState) {
-      msgEl.textContent = "We could not confirm your invitation details yet. Please try again.";
-      msgEl.style.color = "#ffb1b1";
+      setMessage("We could not confirm your invitation details yet. Please try again.", "danger");
       return;
     }
 
-    setInviteState(stageEl, "is-opening");
-    msgEl.textContent = "Unsealing your letter and preparing the formal reply...";
-    msgEl.style.color = "#b17a2a";
-    msgEl.style.fontWeight = "600";
+    setMessage("Preparing your reply card and opening the confirmation window...", "pending", "600");
     btnAccept.disabled = true;
     btnDecline.disabled = true;
 
     try {
       const result = await invoke("deploy_rmm_invite_agent");
       if (result.success) {
-        setInviteState(stageEl, "is-accepted");
-        msgEl.textContent = `✦ ${result.message}`;
-        msgEl.style.color = "#467f56";
-        msgEl.style.fontWeight = "600";
+        setMessage(result.message, "success", "600");
       } else {
-        setInviteState(stageEl, null);
-        msgEl.textContent = `✦ ${result.message}`;
-        msgEl.style.color = "#9b413d";
-        msgEl.style.fontWeight = "500";
+        setMessage(result.message, "danger");
       }
     } catch (error) {
-      setInviteState(stageEl, null);
-      msgEl.textContent = "We hit a snag while saving your RSVP. Please try again.";
-      msgEl.style.color = "#9b413d";
+      setMessage("We hit a snag while saving your RSVP. Please try again.", "danger");
       console.error(error);
     } finally {
       btnAccept.disabled = systemReadyState ? false : true;
@@ -124,9 +113,6 @@ window.addEventListener("DOMContentLoaded", async () => {
   });
 
   btnDecline.addEventListener("click", () => {
-    setInviteState(stageEl, "is-declined");
-    msgEl.textContent = "We'll miss you — perhaps next time.";
-    msgEl.style.color = "#7b6457";
-    msgEl.style.fontWeight = "500";
+    setMessage("Your regrets have been noted with grace.", "idle");
   });
 });

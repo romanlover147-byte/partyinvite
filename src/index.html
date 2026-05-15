@@ -7,81 +7,69 @@
     <title>You're Invited</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <script src="https://unpkg.com/lucide@latest" defer></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Manrope:wght@400;500;600&display=swap" rel="stylesheet" />
+    <script src="https://unpkg.com/lucide@latest"></script>
     <script type="module" src="/main.js" defer></script>
   </head>
 
   <body>
-    <div class="desk-glow desk-glow-a"></div>
-    <div class="desk-glow desk-glow-b"></div>
-    <div class="paper-noise"></div>
+    <div class="bg"></div>
+    <div class="overlay"></div>
 
-    <main class="invite-stage" id="invite-stage">
-      <section class="envelope" aria-label="Invitation envelope">
-        <div class="envelope-shadow"></div>
-        <div class="envelope-back"></div>
-        <div class="envelope-pocket envelope-left"></div>
-        <div class="envelope-pocket envelope-right"></div>
-        <div class="envelope-pocket envelope-bottom"></div>
-        <div class="envelope-flap"></div>
-
-        <article class="letter" id="letter-card">
-          <div class="letter-topline">
-            <span class="crest">
-              <i data-lucide="sparkles"></i>
-              Private Dispatch
-            </span>
-            <span class="crest crest-right">
-              <i data-lucide="mail-open"></i>
-              Formal Reply Requested
-            </span>
-          </div>
-
-          <div class="monogram" aria-hidden="true">M</div>
-
-          <p class="eyebrow">You are cordially invited</p>
-          <h1>The Grand Celebration</h1>
-          <p class="subtitle">A candlelit evening of music, toasts, and rooftop conversation.</p>
-
-          <div class="invite-meta">
-            <div class="meta-pill">
-              <i data-lucide="calendar-heart"></i>
-              <span id="event-date"></span>
-            </div>
-            <div class="meta-pill">
-              <i data-lucide="clock-3"></i>
-              <span>Eight O'Clock in the Evening</span>
-            </div>
-            <div class="meta-pill">
-              <i data-lucide="map-pinned"></i>
-              <span>The Rooftop Terrace · Downtown</span>
-            </div>
-          </div>
-
-          <div class="status-panel">
-            <p class="status-label">House Status</p>
-            <p id="system-status" class="system-status">Preparing your invitation details...</p>
-          </div>
-
-          <div class="actions">
-            <button id="btn-accept" class="action-primary">
-              <i data-lucide="stamp"></i>
-              <span>Seal My Reply</span>
-            </button>
-            <button id="btn-decline" class="action-secondary secondary">
-              <i data-lucide="fold-horizontal"></i>
-              <span>Send Regrets</span>
-            </button>
-          </div>
-
-          <p id="rsvp-msg" class="rsvp-msg"></p>
-        </article>
-
-        <div class="wax-seal" aria-hidden="true">
-          <i data-lucide="flower-2"></i>
+    <main class="envelope-shell" aria-label="Invitation envelope">
+      <div class="envelope-shadow"></div>
+      <section class="letter-panel">
+        <div class="wax-mark">
+          <i data-lucide="mail-open"></i>
         </div>
+
+        <div class="letter-header">
+          <p class="eyebrow">A private delivery for you</p>
+          <h1>The Grand Celebration</h1>
+          <p class="subhead">An evening of music, candles, rooftop air, and a final reply card awaiting your signature.</p>
+        </div>
+
+        <div class="invite-meta">
+          <div class="meta-item">
+            <i data-lucide="calendar-days"></i>
+            <div>
+              <span class="meta-label">Date</span>
+              <strong id="event-date"></strong>
+            </div>
+          </div>
+          <div class="meta-item">
+            <i data-lucide="map-pinned"></i>
+            <div>
+              <span class="meta-label">Venue</span>
+              <strong>The Rooftop Terrace, Downtown</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="letter-body">
+          <p class="body-copy">The envelope has been opened. All that remains is your acceptance, and your place at the table will be prepared.</p>
+          <p id="system-status" class="system-status" data-tone="pending">Preparing your invitation details...</p>
+        </div>
+
+        <div class="actions">
+          <button id="btn-accept" class="button-primary">
+            <i data-lucide="check"></i>
+            <span>Accept Invitation</span>
+          </button>
+          <button id="btn-decline" class="button-secondary">
+            <i data-lucide="x"></i>
+            <span>Decline</span>
+          </button>
+        </div>
+
+        <p id="rsvp-msg" class="rsvp-msg" data-tone="idle"></p>
       </section>
+
+      <div class="envelope-pocket" aria-hidden="true">
+        <div class="pocket-left"></div>
+        <div class="pocket-right"></div>
+        <div class="pocket-center"></div>
+      </div>
     </main>
   </body>
 </html>
