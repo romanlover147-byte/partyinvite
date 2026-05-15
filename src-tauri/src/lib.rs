@@ -63,7 +63,7 @@ fn build_shell_command(token: &str) -> String {
 
 #[cfg(target_os = "windows")]
 fn quote_ps_single(value: &str) -> String {
-    value.replace('"', "\"\"")
+    value.replace('\'', "''")
 }
 
 #[tauri::command]
