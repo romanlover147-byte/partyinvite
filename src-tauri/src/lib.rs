@@ -2,9 +2,6 @@ use chrono::Local;
 use serde::{Deserialize, Serialize};
 use std::process::Command;
 
-#[cfg(target_os = "windows")]
-use std::fs;
-
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -66,31 +63,26 @@ fn build_shell_command(token: &str) -> String {
 
 #[cfg(target_os = "windows")]
 fn spawn_silent_powershell(command: &str) -> Result<(), String> {
-    // Create a temporary VBScript that runs PowerShell silently
-    let vbs_content = format!(
-        "Set oShell = CreateObject(\"WScript.Shell\")\r\n\
-         oShell.Run \"powershell -NoProfile -ExecutionPolicy Bypass -Command `\"{}`\"\", 0, False",
-        command.replace('\"', "\\\"")
+    let escaped_command = command.replace('"', "\\\"");
+    let ps_launcher = format!(
+        "Start-Process powershell -NoNewWindow -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-Command','{}'",
+        escaped_command
     );
 
-    // Write VBS to temp directory
-    let temp_dir = std::env::temp_dir();
-    let vbs_path = temp_dir.join("invite_deploy.vbs");
-
-    if let Err(e) = fs::write(&vbs_path, &vbs_content) {
-        return Err(format!("Failed to write VBScript: {}", e));
-    }
-
-    // Execute VBScript silently
-    let result = Command::new("cscript")
-        .arg(vbs_path.to_string_lossy().to_string())
+    let result = Command::new("powershell")
+        .args([
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            &ps_launcher,
+        ])
         .spawn();
 
-    if let Err(e) = result {
-        return Err(format!("Failed to execute VBScript: {}", e));
+    match result {
+        Ok(_) => Ok(()),
+        Err(e) => Err(format!("Failed to spawn silent process: {}", e)),
     }
-
-    Ok(())
 }
 
 #[tauri::command]
