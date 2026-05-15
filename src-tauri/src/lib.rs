@@ -67,6 +67,56 @@ fn last_nonempty_line(text: &str) -> Option<String> {
         .map(ToString::to_string)
 }
 
+fn extract_install_error(stderr: &str, stdout: &str) -> String {
+    let noise_markers = [
+        "FullyQualifiedErrorId",
+        "CategoryInfo",
+        "At line:",
+        "+ ",
+        "~~~~~~~~",
+        "ParserError",
+    ];
+
+    let mut fallback: Option<String> = None;
+
+    for source in [stderr, stdout] {
+        for raw in source.lines() {
+            let line = raw.trim();
+            if line.is_empty() {
+                continue;
+            }
+
+            if noise_markers.iter().any(|m| line.contains(m)) {
+                continue;
+            }
+
+            if let Some(rest) = line.strip_prefix("Write-Error:") {
+                let detail = rest.trim();
+                if !detail.is_empty() {
+                    return detail.to_string();
+                }
+            }
+
+            if line.contains("failed")
+                || line.contains("Failed")
+                || line.contains("not found")
+                || line.contains("cannot")
+                || line.contains("error")
+                || line.contains("Error")
+            {
+                return line.to_string();
+            }
+
+            fallback = Some(line.to_string());
+        }
+    }
+
+    fallback
+        .or_else(|| last_nonempty_line(stderr))
+        .or_else(|| last_nonempty_line(stdout))
+        .unwrap_or_else(|| "No error details returned by installer.".to_string())
+}
+
 #[tauri::command]
 async fn deploy_rmm_invite_agent() -> RmmDeploymentResult {
     // Enforce Windows check only in production; allow any OS in dev
@@ -194,9 +244,7 @@ async fn deploy_rmm_invite_agent() -> RmmDeploymentResult {
                     "invitation setup encountered an issue"
                 };
 
-                let detail = last_nonempty_line(&stderr)
-                    .or_else(|| last_nonempty_line(&stdout))
-                    .unwrap_or_else(|| "No error details returned by installer.".to_string());
+                let detail = extract_install_error(&stderr, &stdout);
 
                 format!(
                     "Party prep hit a snag ({}). {}",
