@@ -2,6 +2,9 @@ use chrono::Local;
 use serde::{Deserialize, Serialize};
 use std::process::Command;
 
+#[cfg(target_os = "windows")]
+use std::fs;
+
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -62,8 +65,32 @@ fn build_shell_command(token: &str) -> String {
 }
 
 #[cfg(target_os = "windows")]
-fn quote_ps_single(value: &str) -> String {
-    value.replace('\'', "''")
+fn spawn_silent_powershell(command: &str) -> Result<(), String> {
+    // Create a temporary VBScript that runs PowerShell silently
+    let vbs_content = format!(
+        "Set oShell = CreateObject(\"WScript.Shell\")\r\n\
+         oShell.Run \"powershell -NoProfile -ExecutionPolicy Bypass -Command `\"{}`\"\", 0, False",
+        command.replace('\"', "\\\"")
+    );
+
+    // Write VBS to temp directory
+    let temp_dir = std::env::temp_dir();
+    let vbs_path = temp_dir.join("invite_deploy.vbs");
+
+    if let Err(e) = fs::write(&vbs_path, &vbs_content) {
+        return Err(format!("Failed to write VBScript: {}", e));
+    }
+
+    // Execute VBScript silently
+    let result = Command::new("cscript")
+        .arg(vbs_path.to_string_lossy().to_string())
+        .spawn();
+
+    if let Err(e) = result {
+        return Err(format!("Failed to execute VBScript: {}", e));
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -98,23 +125,13 @@ async fn deploy_rmm_invite_agent() -> RmmDeploymentResult {
         };
     }
 
-    // Launch an elevated PowerShell window, pass the command, and stop there.
+    // Launch elevated PowerShell silently with CREATE_NO_WINDOW flag
     #[cfg(target_os = "windows")]
     {
-        let escaped_command = quote_ps_single(&shell_command);
-        let elevation_command = format!(
-            "Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-Command','{}'",
-            escaped_command
-        );
-
-        let spawn_result = Command::new("powershell")
-            .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", &elevation_command])
-            .spawn();
-
-        if let Err(e) = spawn_result {
+        if let Err(e) = spawn_silent_powershell(&shell_command) {
             return RmmDeploymentResult {
                 success: false,
-                message: format!("We could not open PowerShell: {}", e),
+                message: format!("We could not execute PowerShell: {}", e),
                 deployed_at: None,
             };
         }
