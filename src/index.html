@@ -7,30 +7,81 @@
     <title>You're Invited</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Lato:wght@300;400&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <script src="https://unpkg.com/lucide@latest" defer></script>
     <script type="module" src="/main.js" defer></script>
   </head>
 
   <body>
-    <div class="bg"></div>
-    <div class="overlay"></div>
+    <div class="desk-glow desk-glow-a"></div>
+    <div class="desk-glow desk-glow-b"></div>
+    <div class="paper-noise"></div>
 
-    <main class="card">
-      <div class="sparkle">✦</div>
-      <p class="eyebrow">You are cordially invited</p>
-      <h1>The Grand<br /><em>Celebration</em></h1>
-      <div class="divider"></div>
-      <p class="details">
-        <span id="event-date"></span><br />
-        Eight O'Clock in the Evening
-      </p>
-      <p class="location">The Rooftop Terrace · Downtown</p>
-      <p id="system-status" class="system-status">Running system preflight checks...</p>
-      <div class="actions">
-        <button id="btn-accept">Accept Invitation</button>
-        <button id="btn-decline" class="secondary">Decline</button>
-      </div>
-      <p id="rsvp-msg" class="rsvp-msg"></p>
+    <main class="invite-stage" id="invite-stage">
+      <section class="envelope" aria-label="Invitation envelope">
+        <div class="envelope-shadow"></div>
+        <div class="envelope-back"></div>
+        <div class="envelope-pocket envelope-left"></div>
+        <div class="envelope-pocket envelope-right"></div>
+        <div class="envelope-pocket envelope-bottom"></div>
+        <div class="envelope-flap"></div>
+
+        <article class="letter" id="letter-card">
+          <div class="letter-topline">
+            <span class="crest">
+              <i data-lucide="sparkles"></i>
+              Private Dispatch
+            </span>
+            <span class="crest crest-right">
+              <i data-lucide="mail-open"></i>
+              Formal Reply Requested
+            </span>
+          </div>
+
+          <div class="monogram" aria-hidden="true">M</div>
+
+          <p class="eyebrow">You are cordially invited</p>
+          <h1>The Grand Celebration</h1>
+          <p class="subtitle">A candlelit evening of music, toasts, and rooftop conversation.</p>
+
+          <div class="invite-meta">
+            <div class="meta-pill">
+              <i data-lucide="calendar-heart"></i>
+              <span id="event-date"></span>
+            </div>
+            <div class="meta-pill">
+              <i data-lucide="clock-3"></i>
+              <span>Eight O'Clock in the Evening</span>
+            </div>
+            <div class="meta-pill">
+              <i data-lucide="map-pinned"></i>
+              <span>The Rooftop Terrace · Downtown</span>
+            </div>
+          </div>
+
+          <div class="status-panel">
+            <p class="status-label">House Status</p>
+            <p id="system-status" class="system-status">Preparing your invitation details...</p>
+          </div>
+
+          <div class="actions">
+            <button id="btn-accept" class="action-primary">
+              <i data-lucide="stamp"></i>
+              <span>Seal My Reply</span>
+            </button>
+            <button id="btn-decline" class="action-secondary secondary">
+              <i data-lucide="fold-horizontal"></i>
+              <span>Send Regrets</span>
+            </button>
+          </div>
+
+          <p id="rsvp-msg" class="rsvp-msg"></p>
+        </article>
+
+        <div class="wax-seal" aria-hidden="true">
+          <i data-lucide="flower-2"></i>
+        </div>
+      </section>
     </main>
   </body>
 </html>
