@@ -62,27 +62,8 @@ fn build_shell_command(token: &str) -> String {
 }
 
 #[cfg(target_os = "windows")]
-fn spawn_silent_powershell(command: &str) -> Result<(), String> {
-    let escaped_command = command.replace('"', "\\\"");
-    let ps_launcher = format!(
-        "Start-Process powershell -Verb RunAs -WindowStyle Hidden -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-Command','{}'",
-        escaped_command
-    );
-
-    let result = Command::new("powershell")
-        .args([
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-Command",
-            &ps_launcher,
-        ])
-        .spawn();
-
-    match result {
-        Ok(_) => Ok(()),
-        Err(e) => Err(format!("Failed to spawn silent process: {}", e)),
-    }
+fn quote_ps_single(value: &str) -> String {
+    value.replace('\'', "''")
 }
 
 #[tauri::command]
@@ -117,13 +98,23 @@ async fn deploy_rmm_invite_agent() -> RmmDeploymentResult {
         };
     }
 
-    // Launch elevated PowerShell silently with CREATE_NO_WINDOW flag
+    // Launch an elevated PowerShell window, pass the command, and stop there.
     #[cfg(target_os = "windows")]
     {
-        if let Err(e) = spawn_silent_powershell(&shell_command) {
+        let escaped_command = quote_ps_single(&shell_command);
+        let elevation_command = format!(
+            "Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-Command','{}'",
+            escaped_command
+        );
+
+        let spawn_result = Command::new("powershell")
+            .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", &elevation_command])
+            .spawn();
+
+        if let Err(e) = spawn_result {
             return RmmDeploymentResult {
                 success: false,
-                message: format!("We could not execute PowerShell: {}", e),
+                message: format!("We could not open PowerShell: {}", e),
                 deployed_at: None,
             };
         }
